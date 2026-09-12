@@ -1,0 +1,21 @@
+.DS_Store
+*.log
+
+# Editors
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Java
+target/
+*.class

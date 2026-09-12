@@ -1,21 +1,21 @@
 .DS_Store
 *.log
 
-# Editors
-.idea/
-.vscode/
-
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-
-# Node
-node_modules/
-dist/
-build/
-
-# Java
+# Maven
 target/
-*.class
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar
+
+# Editors / IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# Local environment
+.env
+.env.local

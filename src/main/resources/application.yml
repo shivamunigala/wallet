@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: wallet
+
+server:
+  # Render injects PORT at runtime; default to 8080 locally.
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

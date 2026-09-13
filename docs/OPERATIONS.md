@@ -116,7 +116,31 @@ Structured JSON on stdout, one object per line, every line carrying `correlation
 
 ```bash
 docker-compose logs -f app                       # local
-# Render: dashboard -> the service -> Logs (public link available from there)
+```
+
+**Sharing the Render log stream publicly** (the brief asks for a public logs link *or* a
+recording of them streaming during a burst):
+
+1. Render dashboard → the `wallet` service → **Logs** tab.
+2. Top right of the log panel → **Share** → enable the shareable link.
+3. Copy the generated URL. It is readable without a Render account; anyone with the link can
+   watch the stream live.
+
+Render's share links **expire**, so generate one close to submitting and re-check it before
+sending. If the option is unavailable on the free plan, record the stream instead: open the
+Logs tab, start a screen recording, and run the burst against the live URL in another window
+— the domain events scroll past in real time, which is what the brief is actually asking to
+see.
+
+```bash
+./scripts/burst.sh https://wallet-dm4c.onrender.com
+```
+
+Either way, warm the instance first — the free tier sleeps when idle, and a burst against a
+cold instance fails on timeouts:
+
+```bash
+curl -s https://wallet-dm4c.onrender.com/actuator/health   # wait for {"status":"UP"}
 ```
 
 Follow a single request through a burst:

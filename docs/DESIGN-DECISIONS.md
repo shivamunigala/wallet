@@ -86,6 +86,11 @@ the code that depends on it, and `ConservationTest` now asserts on **status code
 as balances** — it had stayed green throughout, because conservation holds trivially when
 the transactions are rolling back.
 
+> Deployment changed one thing about this section's premise: round trips are even more
+> expensive than assumed, because managed Postgres is a network hop away rather than on
+> the same Docker network. That cost, and the reduction from four connection acquisitions
+> per transfer to two, are measured in [PERFORMANCE.md](PERFORMANCE.md).
+
 ### Heavier alternatives, and why they were rejected
 
 | Alternative | Why not |

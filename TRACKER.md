@@ -74,17 +74,11 @@ work email appears nowhere in the public history.
 
 ## Open tasks, in order
 
-### T1. Delete the stray repo on the work account
-`ShivaZT/wallet` still exists — private, holding only a placeholder README after its history
-was force-pushed away. Deleting it needs a scope the token lacks, and the refresh failed
-during a GitHub incident on 2026-09-13:
-```bash
-gh auth refresh -h github.com -s delete_repo   # then:
-gh repo delete ShivaZT/wallet --yes
-```
-Or via the web UI: repo → Settings → Danger Zone. Low urgency — it is private and empty.
+### T1. Delete the stray repo on the work account — **DONE**
+`ShivaZT/wallet` has been deleted by Shiva. Nothing on the work account references this
+project any more.
 
-Also worth deleting: the unused SSH key `~/.ssh/id_ed25519_personal_github` and its
+Optional tidy-up, low value: the unused SSH key `~/.ssh/id_ed25519_personal_github` and its
 `.pub`, generated during the mix-up and never used.
 
 ### T3. Deploy to Render + Neon — **DONE**
@@ -106,18 +100,31 @@ curl -s https://wallet-dm4c.onrender.com/actuator/health
 instance fails on timeouts. Hit `/actuator/health` until it returns 200, then burst.
 
 Still outstanding here:
-- **Rotate the Neon password** once the assignment is submitted — the current one was pasted
-  into a chat transcript.
 - Keep using the **DIRECT** Neon endpoint, never `-pooler`.
+
+**Neon password: deliberately not rotated.** It was pasted into a chat transcript, and Shiva
+decided on 2026-09-13 that this is acceptable — the database holds only synthetic assignment
+data and is free-tier. Recorded as a decision so a later session does not "fix" it and break
+the running deploy. Worth revisiting only if this project is ever reused for anything real.
 
 ### T4. AI disclosure — **Shiva writes this, not Claude**
 The brief asks where he *directed* the AI versus where he *let it decide*. Deliberately not
 drafted by Claude; it is his account to give. For accuracy, the record is in
 [HANDOVER.md](HANDOVER.md#who-decided-what).
 
-### T5. Public logs link
-Render's dashboard has a log stream. Either share a link or record the stream during a
-burst run.
+### T5. Public logs link — **Shiva does this**
+Last deliverable. Full steps in
+[OPERATIONS.md](docs/OPERATIONS.md#logs): Render dashboard → `wallet` → **Logs** → Share →
+copy the link. Render's share links expire, so generate it close to submitting.
+
+If sharing is not available on the free plan, record the stream instead — open the Logs tab,
+start a screen recording, warm the service, and run the burst so the domain events scroll
+past live:
+
+```bash
+curl -s https://wallet-dm4c.onrender.com/actuator/health   # wait for UP - free tier sleeps
+./scripts/burst.sh https://wallet-dm4c.onrender.com
+```
 
 ---
 
@@ -127,6 +134,7 @@ Newest first. One or two lines each — detail belongs in [HANDOVER.md](HANDOVER
 
 | Date | What moved |
 |---|---|
+| 2026-09-13 | Wrote [PERFORMANCE.md](docs/PERFORMANCE.md) — the deploy-time findings and the round-trip reduction, with the measurements to repeat before re-tuning. Linked from CLAUDE.md, DESIGN-DECISIONS.md and ARCHITECTURE.md. T1 closed (stray repo deleted); Neon password rotation dropped by decision. |
 | 2026-09-13 | **Service is live and green** on `6bd88d9`: 15/15 three runs against <https://wallet-dm4c.onrender.com>, 60/60 transfers, no non-201s. Per-transfer DB time ~93ms → ~37ms. Fixed two further failures after the OOM — Hikari pool exhaustion under the burst (pool 5 → 20, timeout 10s), and pool timeouts being reported as 500 because the same timeout wears three different exception types. Then cut `POST /transfers` from four connection acquisitions to two via `TransferPreflight`; burst now passes with a pool of **2**. |
 | 2026-09-13 | Diagnosed the Render deploy failure: **runtime** OOM, not build. `MaxRAMPercentage=70` sized the heap alone at ~358Mi of a 512Mi cap, leaving too little for metaspace; the container was killed mid-Hibernate-bootstrap before Tomcat bound a port. Replaced with explicit per-region limits (~439Mi ceiling). Verified locally in a 512m-capped container: healthy, burst 15/15, peak 255Mi. **Not yet pushed.** |
 | 2026-09-13 | **Public repo live** at <https://github.com/shivamunigala/wallet>. All 7 commits rewritten to the personal noreply identity; push isolated to a dedicated SSH key with repo-local config only. |

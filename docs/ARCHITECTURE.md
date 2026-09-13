@@ -3,6 +3,7 @@
 A single Spring Boot service over one PostgreSQL database. No queue, no cache, no second
 system of record — that is a deliberate choice, not an omission
 ([why](DESIGN-DECISIONS.md#heavier-alternatives-and-why-they-were-rejected)).
+How it behaves once deployed, and why, is in [PERFORMANCE.md](PERFORMANCE.md).
 
 ```
    client

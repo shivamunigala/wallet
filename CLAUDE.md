@@ -24,6 +24,9 @@ Then, for the code itself:
    constraint defends.
 7. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers and request flow.
 8. **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — run, deploy, observe, troubleshoot.
+9. **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** — what deploying taught us: round trips
+   as the scarce resource, the connection-acquisition reduction, the 512Mi budget, and the
+   measurements to repeat before re-tuning anything.
 
 ## End every session by updating the tracker
 

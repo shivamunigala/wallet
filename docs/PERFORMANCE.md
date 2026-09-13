@@ -88,6 +88,9 @@ wallets with a single `findAllById` rather than two `findById` calls.
 - four acquisitions → **two**
 - four round trips → **three**
 
+(Strictly it was *five* acquisitions, not four: the auth filter reached the database on every
+request too. That one is covered further down, and is now cached away.)
+
 It is a separate bean for one reason: a method `TransferService` called on *itself* would
 bypass the Spring proxy and the annotation would silently do nothing. This is the same
 reason [`TransferExecutor`](../src/main/java/com/shiva/wallet/service/TransferExecutor.java)
@@ -128,8 +131,9 @@ The first live burst failed **41 of 60** transfers with
 
 At four acquisitions per transfer and ~93ms of database time each, a pool of 5 gave 12 waves
 of queueing plus lock serialization on three hot wallet rows — comfortably past a 3s timeout.
-The pool is now 20 with a 10s timeout (`DB_POOL_SIZE`, `DB_CONNECTION_TIMEOUT_MS`), both well
-inside Neon's free-tier allowance.
+The pool is now 20 (`DB_POOL_SIZE`), well inside Neon's free-tier allowance, with a 30s
+acquisition timeout (`DB_CONNECTION_TIMEOUT_MS`) — see *Load shedding* below for why that
+number is high and what it costs.
 
 With the round-trip reduction in place the pool is no longer the binding constraint, which is
 the right order to have fixed things in: the sizing is now headroom rather than a workaround.

@@ -48,21 +48,18 @@ consistency-versus-availability position. Reasoning for each is in
 
 ## What exists now
 
-Five commits on `main`, working tree clean, **no git remote**.
-
-```
-b9d4253  Add steering docs: code map, design write-up, concurrency and ops
-e081bb2  Fix deadlock under contention; add container, compose and burst script
-9b797d9  Implement wallet service with concurrency-safe transfers
-37d850a  Add Spring Boot 2.7.18 / Java 8 skeleton
-eda7ac1  Initial commit: wallet assignment scaffold
-```
+Eight commits on `main`, working tree clean, pushed to
+**<https://github.com/shivamunigala/wallet>** (personal account, public).
 
 Complete and verified: the service, the four-invariant Testcontainers suite (10 tests), the
 Dockerfile and compose stack, the Render blueprint, the burst script (15 assertions), and
 six documents under `docs/`.
 
-Not done: the deployment, and everything that depends on it.
+Not done: the deployment, and everything that depends on it — the live URL and the public
+logs link. See [TRACKER.md](TRACKER.md).
+
+> Commit SHAs are deliberately not listed here; they went stale once history was rewritten.
+> Run `git log --oneline`.
 
 ---
 

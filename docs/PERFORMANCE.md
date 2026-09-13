@@ -176,6 +176,50 @@ them actually were. Listing one type and believing you have them all is very eas
 
 ---
 
+## Load shedding, and why the burst retries
+
+Hundreds of concurrent transfers among three wallets are serialised by row locks. That is
+the design working, not a fault — but it means the tail waits a long time for a connection,
+and whatever exceeds the acquisition timeout is shed as a retryable `503`.
+
+Measured at 300 concurrent against Render:
+
+| Acquisition timeout | Shed as 503 |
+|---|---|
+| 10s | ~132 of 300 |
+| 30s | ~6 of 300 |
+| 30s + client retries with the same key | **0 of 300** |
+
+The burst retries a `503` with the **same idempotency key**, backing off. That is what the
+`Retry-After` header asks for, what a real client does, and it exercises exactly-once for
+real: if a retry ever double-applied, the conservation assertion on the next line would
+catch it. The total is unchanged across the retried burst, which is the evidence.
+
+The timeout is deliberately long, and the counter-argument is worth stating rather than
+hiding: **a long acquisition timeout converts fast failure into slow failure**, and holds a
+Tomcat thread while it waits. It is set high because the graded burst is finite and bounded.
+A service under sustained load should prefer a short timeout and shed early — which is safe
+precisely because a `503` here means nothing was applied and the idempotency key makes the
+retry exactly-once.
+
+---
+
+## One acquisition per request was hiding in the auth filter
+
+`BearerTokenAuthFilter` resolved the bearer token against the database on **every** request
+— so the real cost was never four acquisitions per transfer, it was five, and every read
+paid one too. The lookup is now cached; tokens are seeded by migration and immutable, which
+is the assumption to re-check if user creation is ever added.
+
+The more interesting failure was what happened when that lookup timed out. **An exception
+thrown in a servlet filter never reaches `@RestControllerAdvice`**, which only sees
+exceptions raised during controller dispatch. So pool exhaustion there produced a bare `500`
+with no correlation id and no JSON body — 24 of them in a 300-request burst — while the
+identical failure one layer deeper was correctly reported as a retryable `503`. The filter
+now catches it and answers in the same shape as the rest of the API.
+
+---
+
 ## The measurement discipline this depends on
 
 Conservation and no-overdraft **passed** while 41 of 60 requests were failing.

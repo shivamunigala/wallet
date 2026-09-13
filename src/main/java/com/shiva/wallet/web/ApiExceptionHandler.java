@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -50,6 +51,26 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("invalid_request", "Request body is missing or malformed",
+                        correlationId(), null));
+    }
+
+    /**
+     * Backstop for transient database contention — a deadlock victim, a serialization
+     * failure, a pool timeout.
+     *
+     * <p>The lock ordering in {@link com.shiva.wallet.service.TransferExecutor} is designed
+     * so this does not happen, and under the burst load it does not. It is mapped anyway
+     * because the honest status for "your request lost a race, nothing was applied" is a
+     * retryable 503, not a 500 that suggests the service is broken. Nothing partial can
+     * have been committed: the whole transfer lives in one transaction.
+     */
+    @ExceptionHandler(TransientDataAccessException.class)
+    public ResponseEntity<ErrorResponse> handleTransientDatabaseFailure(TransientDataAccessException e) {
+        log.warn("request.transient_database_conflict reason={}", e.getClass().getSimpleName());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header("Retry-After", "1")
+                .body(new ErrorResponse("transient_conflict",
+                        "Transient contention, nothing was applied. Retry with the same idempotency key.",
                         correlationId(), null));
     }
 

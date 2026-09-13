@@ -1,0 +1,42 @@
+# One command brings up the whole system:
+#
+#     docker-compose up --build
+#
+# The app waits for Postgres to pass its own health check before starting, so a cold
+# `up` on a clean machine works without retries or sleep loops.
+
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+    ports:
+      - "5432:5432"
+    volumes:
+      - wallet-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wallet
+      SPRING_DATASOURCE_USERNAME: wallet
+      SPRING_DATASOURCE_PASSWORD: wallet
+      PORT: 8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  wallet-db-data:

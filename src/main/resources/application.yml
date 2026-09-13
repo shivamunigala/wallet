@@ -32,10 +32,21 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+          # The two ledger rows of a transfer go out as one round trip. Round trips are
+          # the scarce resource here: they happen while row locks are held, so each one
+          # adds directly to how long other transfers on the same wallets must wait.
+          batch_size: 20
+        order_inserts: true
 
   flyway:
     enabled: true
     baseline-on-migrate: true
+    # Flyway guards migrations with a session-level advisory lock. Two instances starting
+    # at once (a Render rolling deploy does exactly this) contend for it, so retry rather
+    # than failing the boot. Note: point this at a DIRECT database endpoint, never a
+    # PgBouncer-pooled one - in transaction pooling the unlock lands on a different
+    # backend and the lock leaks until that session is killed.
+    lock-retry-count: 30
 
 server:
   # Render injects PORT at runtime; default to 8080 locally.

@@ -1,0 +1,20 @@
+# Render blueprint. Deploys the Dockerfile at the repo root as a free web service.
+#
+# DATABASE_URL is deliberately NOT set here: it is a Neon connection string containing a
+# password, so it is entered in the Render dashboard as a secret rather than committed.
+# DatabaseUrlEnvironmentPostProcessor translates Neon's postgres:// form into the JDBC
+# URL, username and password the datasource needs.
+
+services:
+  - type: web
+    name: wallet
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_POOL_SIZE
+        value: "5"

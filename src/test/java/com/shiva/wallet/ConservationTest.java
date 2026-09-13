@@ -5,12 +5,14 @@ import com.shiva.wallet.repository.WalletRepository;
 import com.shiva.wallet.support.AbstractPostgresTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
@@ -73,7 +75,18 @@ class ConservationTest extends AbstractPostgresTest {
             tasks.add(() -> post("/transfers", token, body));
         }
 
-        fireAllSimultaneously(tasks);
+        List<ResponseEntity<Map>> responses = fireAllSimultaneously(tasks);
+
+        // Asserting on status codes matters as much as asserting on balances. An earlier
+        // version of this test checked only the money and stayed green while most requests
+        // were in fact failing with deadlocks — conservation trivially holds when the
+        // transactions roll back. Only 201 (applied) and 422 (declined) are acceptable.
+        Set<HttpStatus> statuses = responses.stream()
+                .map(ResponseEntity::getStatusCode)
+                .collect(java.util.stream.Collectors.toSet());
+        assertThat(statuses)
+                .as("every transfer must either apply or decline, never error")
+                .isSubsetOf(HttpStatus.CREATED, HttpStatus.UNPROCESSABLE_ENTITY);
 
         assertThat(walletRepository.totalBalance())
                 .as("transfers must not create or destroy money")
@@ -94,7 +107,8 @@ class ConservationTest extends AbstractPostgresTest {
      * Same starting-line trick as the base class, but for heterogeneous tasks rather than
      * N copies of one task.
      */
-    private void fireAllSimultaneously(List<Callable<ResponseEntity<Map>>> tasks) throws Exception {
+    private List<ResponseEntity<Map>> fireAllSimultaneously(List<Callable<ResponseEntity<Map>>> tasks)
+            throws Exception {
         java.util.concurrent.ExecutorService pool =
                 java.util.concurrent.Executors.newFixedThreadPool(tasks.size());
         java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(tasks.size());
@@ -110,9 +124,11 @@ class ConservationTest extends AbstractPostgresTest {
             }
             ready.await(30, java.util.concurrent.TimeUnit.SECONDS);
             start.countDown();
+            List<ResponseEntity<Map>> responses = new ArrayList<>();
             for (java.util.concurrent.Future<ResponseEntity<Map>> future : futures) {
-                future.get(60, java.util.concurrent.TimeUnit.SECONDS);
+                responses.add(future.get(60, java.util.concurrent.TimeUnit.SECONDS));
             }
+            return responses;
         } finally {
             pool.shutdownNow();
         }

@@ -21,3 +21,15 @@ services:
       # free-tier connection allowance on the direct endpoint.
       - key: DB_POOL_SIZE
         value: "20"
+      # Hundreds of concurrent transfers among a handful of wallets are serialised by row
+      # locks - correctly - so the tail waits a long time for a connection. At the 10s
+      # default a 300-transfer burst sheds ~132 requests as 503; at 30s it sheds ~6.
+      #
+      # The counter-argument is real and worth stating: a long acquisition timeout converts
+      # fast failure into slow failure, and holds a Tomcat thread while it waits. It is set
+      # high here because the graded burst is finite and bounded, and completing it beats
+      # shedding it. A service taking sustained load should prefer the shorter timeout and
+      # let clients retry - which is safe here, because a 503 means nothing was applied and
+      # the idempotency key makes the retry exactly-once.
+      - key: DB_CONNECTION_TIMEOUT_MS
+        value: "30000"

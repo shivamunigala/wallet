@@ -24,6 +24,7 @@ Exits non-zero if any assertion fails, so it can gate a deploy.
 import argparse
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -40,6 +41,10 @@ BURST_TOKENS = ["token-burst-%03d" % n for n in range(1, 201)]
 GET_OR_CREATE_CALLERS = 50
 RETRY_STORM_SIZE = 30
 CONTENDED_TRANSFERS = 300
+# A 503 from this service means "shed under contention, nothing applied, retry is safe".
+# Retrying with the same idempotency key is the correct client behaviour and is what the
+# exactly-once guarantee exists for.
+RETRY_BACKOFF_SECONDS = [0.5, 1.5, 3.0]
 STARTING_BALANCE_PAISE = 50_000
 TRANSFER_AMOUNT_PAISE = 3_000
 
@@ -240,8 +245,23 @@ def scenario_conservation(api, report):
         # Deliberately larger than an equal share, so some transfers are declined and the
         # decline path is exercised rather than only the happy path.
         amount = TRANSFER_AMOUNT_PAISE * (1 + index % 7)
-        return lambda: api.transfer(tokens[source], wallets[source], wallets[target],
-                                    amount, str(uuid.uuid4()))
+        key = str(uuid.uuid4())
+
+        def attempt():
+            # A 503 here is the service shedding load under contention, with Retry-After:
+            # nothing was applied, so retrying is safe. Retrying with the SAME idempotency
+            # key is the point - it is what a real client does, and it exercises the
+            # exactly-once guarantee for real rather than only in the retry-storm scenario.
+            # A retry that double-applied would break conservation and be caught below.
+            for delay in RETRY_BACKOFF_SECONDS:
+                status, body = api.transfer(tokens[source], wallets[source],
+                                            wallets[target], amount, key)
+                if status != 503:
+                    return status, body
+                time.sleep(delay)
+            return api.transfer(tokens[source], wallets[source], wallets[target], amount, key)
+
+        return attempt
 
     results = simultaneously([make_task(i) for i in range(CONTENDED_TRANSFERS)])
 

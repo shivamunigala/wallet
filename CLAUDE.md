@@ -5,16 +5,31 @@ in a handful of files — read the map before reading code.
 
 ## Start here
 
-1. **[docs/CODE-MAP.md](docs/CODE-MAP.md)** — every source file, what it does and why it
+**New session picking this up? Read these two first, in order:**
+
+1. **[TRACKER.md](TRACKER.md)** — current status, blockers, and the next tasks. Keep it
+   updated as things change.
+2. **[HANDOVER.md](HANDOVER.md)** — what has been done and why, plus the findings that cost
+   real time. Read it before debugging anything, so you do not rediscover them.
+
+Then, for the code itself:
+
+3. **[docs/CODE-MAP.md](docs/CODE-MAP.md)** — every source file, what it does and why it
    exists. This is the index; use it to find the right file instead of grepping.
-2. **[docs/CONCURRENCY.md](docs/CONCURRENCY.md)** — the transfer transaction step by step.
+4. **[docs/CONCURRENCY.md](docs/CONCURRENCY.md)** — the transfer transaction step by step.
    Read this before touching anything in `service/` or `repository/`.
-3. **[docs/DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md)** — what was chosen, what was
+5. **[docs/DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md)** — what was chosen, what was
    rejected, and why.
-4. **[docs/DATA-MODEL.md](docs/DATA-MODEL.md)** — schema, and which invariant each
+6. **[docs/DATA-MODEL.md](docs/DATA-MODEL.md)** — schema, and which invariant each
    constraint defends.
-5. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers and request flow.
-6. **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — run, deploy, observe, troubleshoot.
+7. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers and request flow.
+8. **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — run, deploy, observe, troubleshoot.
+
+## Before you push anything
+
+This repo has **no git remote, deliberately**. It was once pushed to Shiva's office GitHub
+account by mistake. **Never create a remote or push without asking him first** — plan
+approval is not consent for a push. Background in [HANDOVER.md](HANDOVER.md#the-github-situation--read-before-touching-any-remote).
 
 ## Build and test
 

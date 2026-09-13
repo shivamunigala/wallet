@@ -2,6 +2,9 @@
 
 Every source file, what it does, and why it exists. **Start here** before reading code.
 
+> Picking this project up cold? Read [TRACKER.md](../TRACKER.md) for where things stand and
+> [HANDOVER.md](../HANDOVER.md) for what has happened so far, then come back here.
+
 The "why" column is the part worth reading. Most of these files are ordinary; the handful
 that carry the correctness of the service are marked **[core]** and each has a deep-dive
 document.

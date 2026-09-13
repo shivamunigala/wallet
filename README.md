@@ -61,6 +61,8 @@ key returns the same decline rather than re-attempting the debit.
 
 | | |
 |---|---|
+| [TRACKER.md](TRACKER.md) | Current status, blockers, next tasks |
+| [HANDOVER.md](HANDOVER.md) | What has been done so far, and the findings that cost time |
 | [CODE-MAP.md](docs/CODE-MAP.md) | Every source file: what it does, why it exists |
 | [DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md) | The write-up: mechanism, rejected alternatives, idempotency, CAP |
 | [CONCURRENCY.md](docs/CONCURRENCY.md) | The transfer transaction, step by step |

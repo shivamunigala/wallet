@@ -20,6 +20,8 @@
   <properties>
     <java.version>1.8</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <logstash-logback-encoder.version>6.6</logstash-logback-encoder.version>
+    <testcontainers.version>1.20.6</testcontainers.version>
   </properties>
 
   <dependencies>
@@ -38,16 +40,93 @@
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+
+    <!-- Observability: Prometheus scrape endpoint + JSON log encoder.
+         logstash-logback-encoder is pinned to the 6.x line; 7.x requires Java 11. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <build>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Testcontainers' bundled docker-java negotiates Docker API 1.32, which
+               engines from Docker 25 onwards reject outright: they require 1.40 or newer
+               and answer anything older with an HTTP 400. Pinning a modern API version
+               lets the suite run on current engines with no per-developer setup.
+
+               It has to be here on the fork's command line rather than in
+               systemPropertyVariables or an environment variable: docker-java reads
+               api.version while its configuration is being built, which happens before
+               surefire applies those, and Testcontainers' own env-var layer does not feed
+               this particular setting through. -->
+          <argLine>-Dapi.version=1.43</argLine>
+
+          <environmentVariables>
+            <!-- Testcontainers starts a small reaper container that cleans up after a
+                 crashed build, and it bind-mounts the Docker socket into it using the
+                 path the *client* uses. Under Colima the client path lives in the user's
+                 home directory, which does not exist inside the VM, so the reaper fails
+                 to start. This states the path as the daemon sees it. The value is also
+                 the correct one for Docker Desktop and CI runners, so it is safe
+                 everywhere rather than a local-machine hack. -->
+            <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+          </environmentVariables>
+        </configuration>
       </plugin>
     </plugins>
   </build>

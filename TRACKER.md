@@ -7,6 +7,9 @@ it is the first thing a new session should read after [CLAUDE.md](CLAUDE.md).
 **Overall:** code and docs complete and verified locally. Deployment not started. Blocked on
 a GitHub hosting decision.
 
+> **Keep this file current.** [CLAUDE.md](CLAUDE.md) requires every session to update it
+> before finishing. A stale tracker is worse than none — the next session trusts it.
+
 ---
 
 ## Deliverables the brief asks for
@@ -107,6 +110,21 @@ drafted by Claude; it is his account to give. For accuracy, the record is in
 ### T5. Public logs link
 Render's dashboard has a log stream. Either share a link or record the stream during a
 burst run.
+
+---
+
+## Session log
+
+Newest first. One or two lines each — detail belongs in [HANDOVER.md](HANDOVER.md).
+
+| Date | What moved |
+|---|---|
+| 2026-09-13 | Added TRACKER.md and HANDOVER.md for cross-session continuity; CLAUDE.md now requires the tracker to be updated at the end of every session. |
+| 2026-09-13 | Repo pushed to the office GitHub account by mistake, then made private and its history force-pushed away. Deletion still pending (T1). Local `origin` removed. |
+| 2026-09-13 | Wrote all six `docs/` documents, including the graded write-up. |
+| 2026-09-13 | Found and fixed the foreign-key lock inversion that deadlocked 59 of 60 concurrent transfers. Burst went to 15/15. |
+| 2026-09-13 | Built the service, the Testcontainers suite, Docker/compose, the Render blueprint, and the burst script. |
+| 2026-09-12 | Repo created; Spring Boot 2.7.18 / Java 8 skeleton, after moving off the original Play Framework plan. |
 
 ---
 

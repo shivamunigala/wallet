@@ -25,6 +25,24 @@ Then, for the code itself:
 7. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — layers and request flow.
 8. **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — run, deploy, observe, troubleshoot.
 
+## End every session by updating the tracker
+
+**This is required, not optional.** [TRACKER.md](TRACKER.md) is only worth reading if it is
+current, and it is the first thing the next session sees. Before you finish a session, or
+whenever the work reaches a natural pause:
+
+1. Update **[TRACKER.md](TRACKER.md)** — move tasks between statuses, add new blockers,
+   remove resolved ones, and change the `Last updated` date. If a decision was made, record
+   the decision rather than the discussion.
+2. Update **[HANDOVER.md](HANDOVER.md)** only when something happened that a future session
+   would otherwise have to rediscover: a non-obvious bug and its cause, an environment
+   quirk, a dead end that is not worth trying again, or a change in who decided what.
+   Routine progress belongs in the tracker, not here.
+3. Commit both with the work they describe, so the status and the code never disagree.
+
+Say what changed in the tracker when you report back, so Shiva can see the status moved
+without opening the file.
+
 ## Before you push anything
 
 This repo has **no git remote, deliberately**. It was once pushed to Shiva's office GitHub

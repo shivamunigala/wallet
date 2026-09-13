@@ -141,21 +141,34 @@ Three separate obstacles, all now handled in `pom.xml`:
 
 ---
 
-## The GitHub situation — read before touching any remote
+## The GitHub situation — resolved, but read this before touching any remote
 
-The repo was pushed to **`ShivaZT/wallet`**, which is Shiva's **office** account. He did not
-want that, and said so immediately.
+The repo now lives at **<https://github.com/shivamunigala/wallet>** — Shiva's *personal*
+account, public. Setup details are in [TRACKER.md](TRACKER.md#git-remote-setup--do-not-change-this).
 
-Claude had treated plan approval as standing consent for the push. **It was not.** Ask
-again at the moment of pushing, every time.
+How it got there is worth knowing:
 
-Already done: repo set to private, history force-pushed away (it now holds one placeholder
-`README.md`), local `origin` removed. Deletion is still pending — the `gh` token lacks
-`delete_repo`, and the refresh failed with HTTP 500 during a **GitHub incident** on
-2026-09-13 (API degraded; Git operations were fine, which is why the force-push worked).
+It was first pushed to **`ShivaZT/wallet`**, his **office** account. Claude had treated plan
+approval as standing consent for the push. **It was not.** Ask again at the moment of
+pushing, every time. That repo was set private and its history force-pushed away; deleting
+it outright is still open (TRACKER task T1).
 
-**Do not create or push to any remote without asking him first.** See [TRACKER.md](TRACKER.md)
-tasks T1 and T2.
+### The ssh-agent trap — cost several wrong turns
+
+Pushes kept authenticating as `ShivaZT` even from a repo configured with a dedicated
+personal key and `IdentitiesOnly=yes`. **The ssh-agent holds the work key and offers it
+ahead of the `-i` key; `IdentitiesOnly=yes` does not prevent that.** The fix is
+`-o IdentityAgent=none` in the repo-local `core.sshCommand`.
+
+Claude misread the symptom first, concluding from `ssh -T` greeting `Hi ShivaZT!` that Shiva
+had added the key to the wrong account, and sent him to delete a key that was never there.
+**Verify with `ssh -o IdentityAgent=none` before blaming key placement.** A `git push
+--dry-run` against the target repo is the definitive check — it exercises write permission
+without changing anything.
+
+Commit history was rewritten to the personal noreply identity before the first push, so the
+zeotap address appears nowhere public. `git filter-branch` leaves the originals under
+`refs/original/` — those were deleted and garbage-collected, which is easy to forget.
 
 ---
 

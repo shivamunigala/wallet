@@ -4,8 +4,8 @@ Living status of the Paytm PML Round 2 assignment. **Update this file as things 
 it is the first thing a new session should read after [CLAUDE.md](CLAUDE.md).
 
 **Last updated:** 2026-09-13
-**Overall:** code and docs complete and verified locally. Deployment not started. Blocked on
-a GitHub hosting decision.
+**Overall:** code and docs complete, and the public repo is live at
+<https://github.com/shivamunigala/wallet>. Deployment to Render is the remaining work.
 
 > **Keep this file current.** [CLAUDE.md](CLAUDE.md) requires every session to update it
 > before finishing. A stale tracker is worse than none — the next session trusts it.
@@ -16,8 +16,8 @@ a GitHub hosting decision.
 
 | # | Deliverable | Status | Notes |
 |---|---|---|---|
-| 1 | Live URL (deployed API) | **Not started** | Blocked — see B1 |
-| 2 | Public repo | **Blocked** | See B1. Nothing is hosted right now |
+| 1 | Live URL (deployed API) | **Not started** | Next up — T3 |
+| 2 | Public repo | **Done** | <https://github.com/shivamunigala/wallet> — personal account, public, 7 commits |
 | 3 | Public logs link (or screen recording of a burst) | **Not started** | Needs the deploy first |
 | 4 | One-command burst script | **Done** | `./scripts/burst.sh <url>` — 15/15 passing locally |
 | 5 | One-page write-up | **Done** | [docs/DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md) |
@@ -43,44 +43,46 @@ a GitHub hosting decision.
 
 ## Blockers
 
-### B1. Where does the repo live? — **needs Shiva's decision**
+None open. The repo-hosting blocker is resolved.
 
-The brief requires a **public** repo. Right now there is **no remote**; the code exists only
-in the local git repo.
+---
 
-What happened: it was pushed to `ShivaZT/wallet` (Shiva's **office** GitHub account), which
-he did not want. Mitigations already applied:
-- Repo set to **private**
-- History **force-pushed away** — it now holds a single placeholder `README.md`
-- Local `origin` remote **removed**
+## Git remote setup — do not change this
 
-Deleting it outright is still pending: the `gh` token lacks the `delete_repo` scope, and
-`gh auth refresh -h github.com -s delete_repo` failed with HTTP 500 during a **GitHub
-incident** on 2026-09-13 (API Requests degraded). Retry once GitHub is healthy.
+`origin` is **git@github.com:shivamunigala/wallet.git**, Shiva's *personal* account. The
+separation from his work account is deliberate and entirely **repo-local** — nothing global
+was modified:
 
-**Decision needed:** which account hosts the public repo — a personal GitHub account, or
-this one. Nothing downstream can proceed without it. Do **not** push anywhere without
-asking him first.
+| Scope | Setting |
+|---|---|
+| repo-local | `user.email` = `63115458+shivamunigala@users.noreply.github.com` |
+| repo-local | `core.sshCommand` = `ssh -i ~/.ssh/id_ed25519_shivamunigala -o IdentitiesOnly=yes -o IdentityAgent=none` |
+| global (untouched) | `user.email` is still the zeotap address |
+| global (untouched) | `gh` credential helper still points at the work account `ShivaZT` |
+
+`IdentityAgent=none` is **load-bearing**: the ssh-agent holds the work key and offers it
+ahead of the `-i` key, which is what made early push attempts authenticate as `ShivaZT`.
+`IdentitiesOnly=yes` alone does not prevent this.
+
+All 7 commits were rewritten to the personal noreply identity before the first push, so the
+work email appears nowhere in the public history.
 
 ---
 
 ## Open tasks, in order
 
-### T1. Resolve the old repo
-Once GitHub's API is healthy:
+### T1. Delete the stray repo on the work account
+`ShivaZT/wallet` still exists — private, holding only a placeholder README after its history
+was force-pushed away. Deleting it needs a scope the token lacks, and the refresh failed
+during a GitHub incident on 2026-09-13:
 ```bash
 gh auth refresh -h github.com -s delete_repo   # then:
 gh repo delete ShivaZT/wallet --yes
 ```
-Or delete via the web UI: repo → Settings → Danger Zone.
+Or via the web UI: repo → Settings → Danger Zone. Low urgency — it is private and empty.
 
-### T2. Create the public repo and push
-Only after B1 is decided.
-```bash
-cd /Users/shiva/Desktop/sourcecodes/wallet
-git remote add origin <url>
-git push -u origin main
-```
+Also worth deleting: the unused SSH key `~/.ssh/id_ed25519_personal_github` and its
+`.pub`, generated during the mix-up and never used.
 
 ### T3. Deploy to Render + Neon
 Full runbook: [docs/OPERATIONS.md](docs/OPERATIONS.md#deploy-neon--render-0).
@@ -119,6 +121,7 @@ Newest first. One or two lines each — detail belongs in [HANDOVER.md](HANDOVER
 
 | Date | What moved |
 |---|---|
+| 2026-09-13 | **Public repo live** at <https://github.com/shivamunigala/wallet>. All 7 commits rewritten to the personal noreply identity; push isolated to a dedicated SSH key with repo-local config only. |
 | 2026-09-13 | Added TRACKER.md and HANDOVER.md for cross-session continuity; CLAUDE.md now requires the tracker to be updated at the end of every session. |
 | 2026-09-13 | Repo pushed to the office GitHub account by mistake, then made private and its history force-pushed away. Deletion still pending (T1). Local `origin` removed. |
 | 2026-09-13 | Wrote all six `docs/` documents, including the graded write-up. |

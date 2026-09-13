@@ -18,10 +18,20 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:wallet}
     password: ${SPRING_DATASOURCE_PASSWORD:wallet}
     hikari:
-      # Money operations hold row locks, so the pool is deliberately small and the
-      # wait bounded: better to shed load fast than to queue behind held locks.
+      # Money operations hold row locks, so the pool stays modest: a deep pool would just
+      # move the queue from Hikari into Postgres, where the waiters hold locks instead of
+      # waiting for one. But it must be sized against the *latency* of the database, not
+      # the local one. A POST /transfers takes four connections in sequence - two wallet
+      # reads, the idempotency lookup, then the transactional execute - so N concurrent
+      # transfers demand 4N acquisitions. Against Postgres on the same Docker network each
+      # is sub-millisecond and a pool of 5 absorbs a 60-transfer burst; against managed
+      # Postgres across the network each acquisition is held for milliseconds, the queue
+      # deepens, and the wait exceeds the timeout. That is what a pool of 5 with a 3s
+      # timeout did on the first live burst: 41 of 60 transfers timed out acquiring a
+      # connection. Nothing was lost - conservation still held, because the transactions
+      # never started - which is exactly why the burst asserts on status codes too.
       maximum-pool-size: ${DB_POOL_SIZE:10}
-      connection-timeout: 3000
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
       pool-name: wallet-pool
 
   jpa:

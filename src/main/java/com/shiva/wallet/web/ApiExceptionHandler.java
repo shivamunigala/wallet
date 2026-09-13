@@ -9,6 +9,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.dao.TransientDataAccessException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -55,17 +56,26 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Backstop for transient database contention — a deadlock victim, a serialization
-     * failure, a pool timeout.
+     * Backstop for transient database contention and for exhaustion of the connection
+     * pool — a deadlock victim, a serialization failure, a Hikari acquisition timeout.
      *
      * <p>The lock ordering in {@link com.shiva.wallet.service.TransferExecutor} is designed
-     * so this does not happen, and under the burst load it does not. It is mapped anyway
-     * because the honest status for "your request lost a race, nothing was applied" is a
-     * retryable 503, not a 500 that suggests the service is broken. Nothing partial can
-     * have been committed: the whole transfer lives in one transaction.
+     * so contention does not reach here, and under the burst load it does not. It is mapped
+     * anyway because the honest status for "your request lost a race, nothing was applied"
+     * is a retryable 503, not a 500 that suggests the service is broken. Nothing partial
+     * can have been committed: the whole transfer lives in one transaction.
+     *
+     * <p>Two exception families have to be named, which is easy to get wrong.
+     * A pool timeout raised once a transaction is already running surfaces as a
+     * {@link TransientDataAccessException}; one raised while the transaction is still being
+     * opened never reaches Spring's DAO translation at all and surfaces as a
+     * {@link CannotCreateTransactionException}, which is a {@code TransactionException} and
+     * therefore *not* a {@code DataAccessException}. Listing only the first looks correct
+     * and silently reports every pool timeout as a 500 — which is exactly what the first
+     * live burst against Render did, on 41 of 60 concurrent transfers.
      */
-    @ExceptionHandler(TransientDataAccessException.class)
-    public ResponseEntity<ErrorResponse> handleTransientDatabaseFailure(TransientDataAccessException e) {
+    @ExceptionHandler({TransientDataAccessException.class, CannotCreateTransactionException.class})
+    public ResponseEntity<ErrorResponse> handleTransientDatabaseFailure(RuntimeException e) {
         log.warn("request.transient_database_conflict reason={}", e.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header("Retry-After", "1")

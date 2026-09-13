@@ -16,5 +16,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      # Sized for the burst against managed Postgres across the network, not against a
+      # local container: see the Hikari block in application.yml. Well inside Neon's
+      # free-tier connection allowance on the direct endpoint.
       - key: DB_POOL_SIZE
-        value: "5"
+        value: "20"

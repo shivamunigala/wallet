@@ -168,7 +168,50 @@ docker run --memory=512m --memory-swap=512m ... wallet
 
 Result: healthy in seconds, 15/15 assertions, peak 255Mi of 512Mi.
 
-### 7. Smaller ones
+### 7. The burst failed live for reasons that were not correctness
+
+After the OOM was fixed the service came up, and the first burst against the live URL failed
+**41 of 60** concurrent transfers with 500s. Two separate problems, neither a correctness bug.
+
+**Hikari pool exhaustion.** `wallet-pool - Connection is not available, request timed out
+after 3000ms`. `POST /transfers` took *four sequential connection acquisitions* — two wallet
+reads, the idempotency lookup, then the transactional execute — so 60 concurrent transfers
+demanded 240 acquisitions from a pool of 5. It passed locally because compose's Postgres is
+on the same Docker network: measured against Neon, a transfer costs **~93ms of database
+time** versus ~0ms for a single read, and it holds row locks for most of it.
+
+**This is not a region problem, and that is worth knowing before someone "fixes" it.**
+Render is `frankfurt` and Neon is `eu-central-1` — the same city, already matched per
+finding #4. But they are different *providers*: traffic leaves Render's network for AWS and
+Neon's connection proxy adds a hop, so a round trip is ~10ms, not the sub-millisecond a
+local container gives. Moving regions buys nothing. Moving the database to Render's own
+free Postgres would genuinely cut that hop, at the cost of a 30-day expiry.
+
+**One pool timeout wears three exception types**, and only one was mapped to 503:
+
+| Raised | Exception | Spring family |
+|---|---|---|
+| transaction already running | `TransientDataAccessException` | transient |
+| while opening the transaction | `CannotCreateTransactionException` | `TransactionException`, *not* a `DataAccessException` |
+| mid-session | `DataAccessResourceFailureException` | **non**-transient |
+
+All three mean "nothing was applied, retry is safe", so all three are now mapped to a
+retryable 503. The third is the trap: "non-transient" describes the JDBC resource, not the
+request. `ApiExceptionHandler`'s javadoc had *claimed* pool timeouts were covered since
+before any of this — listing one type and believing you have them all is very easy here.
+
+**Then the actual fix, rather than a bigger pool.** `TransferPreflight` now runs the two
+wallet checks and the idempotency lookup in one read-only transaction, fetching both wallets
+with a single `findAllById`: four acquisitions become two. It is a separate bean only
+because a method `TransferService` calls on itself bypasses the transactional proxy. The
+burst now passes **15/15 with a pool of 2**, which is the measurement to repeat if anyone
+proposes growing the pool instead.
+
+Note what this episode says about the test suite, again: conservation and no-overdraft
+*passed* while 41 of 60 requests were failing, because money that never moves is trivially
+conserved. Finding #2 is not a historical curiosity — it caught this.
+
+### 8. Smaller ones
 - `@SpringBootTest` disables metrics export; asserting on `/actuator/prometheus` needs
   `@AutoConfigureMetrics`.
 - The JDK's `HttpURLConnection` throws `HttpRetryException` instead of surfacing a 401 when

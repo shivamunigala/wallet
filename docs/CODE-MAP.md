@@ -20,6 +20,7 @@ If you only read four files, read these:
 | [`TransferExecutor.java`](../src/main/java/com/shiva/wallet/service/TransferExecutor.java) | The single transaction in which money moves. Statement order here *is* the correctness argument. → [CONCURRENCY.md](CONCURRENCY.md) |
 | [`WalletRepository.java`](../src/main/java/com/shiva/wallet/repository/WalletRepository.java) | The hand-written SQL that enforces no-overdraft and race-free creation. |
 | [`TransferService.java`](../src/main/java/com/shiva/wallet/service/TransferService.java) | Idempotent replay resolution, which must sit *outside* the transaction. |
+| [`TransferPreflight.java`](../src/main/java/com/shiva/wallet/service/TransferPreflight.java) | The pre-transfer read checks, in one round trip. Advisory only — the real invariants live in `TransferExecutor`. |
 | [`V1__initial_schema.sql`](../src/main/resources/db/migration/V1__initial_schema.sql) | The constraints that hold even if the Java is wrong. → [DATA-MODEL.md](DATA-MODEL.md) |
 
 ---
@@ -30,6 +31,7 @@ If you only read four files, read these:
 |---|---|---|
 | [`TransferExecutor.java`](../src/main/java/com/shiva/wallet/service/TransferExecutor.java) **[core]** | The `@Transactional` money movement: lock, claim key, debit, credit, ledger. | Separate from `TransferService` because the unique-constraint violation that signals a replay must be caught *outside* the transaction — a self-invocation would bypass the Spring proxy and leave the caller holding an aborted transaction. → [CONCURRENCY.md](CONCURRENCY.md) |
 | [`TransferService.java`](../src/main/java/com/shiva/wallet/service/TransferService.java) **[core]** | Validation, replay resolution, metrics. Deliberately not transactional. | Owns everything around the transaction. Handles both replay paths: the fast indexed lookup, and the constraint violation from a same-key race. |
+| [`TransferPreflight.java`](../src/main/java/com/shiva/wallet/service/TransferPreflight.java) | Wallet existence, caller ownership and the idempotency lookup, in a single read-only transaction. | Its own bean purely so the transaction applies: a method `TransferService` calls on itself bypasses the Spring proxy. Collapses three connection acquisitions into one, which matters because round trips are held while row locks are. Advisory only — nothing here is a guarantee, and every real invariant is enforced under lock in `TransferExecutor`. |
 | [`WalletService.java`](../src/main/java/com/shiva/wallet/service/WalletService.java) | Get-or-create, ownership checks, deposits. | Get-or-create is race-free with no application lock — the database arbitrates. |
 | [`RequestHasher.java`](../src/main/java/com/shiva/wallet/service/RequestHasher.java) | SHA-256 fingerprint of `(from, to, amount)`. | Distinguishes an honest retry from a key collision. Storing a hash avoids having to canonicalise and store JSON. |
 

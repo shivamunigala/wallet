@@ -3,13 +3,10 @@ package com.shiva.wallet.service;
 import com.shiva.wallet.config.WalletMetrics;
 import com.shiva.wallet.domain.Transfer;
 import com.shiva.wallet.domain.TransferStatus;
-import com.shiva.wallet.domain.Wallet;
-import com.shiva.wallet.domain.exception.ForbiddenException;
 import com.shiva.wallet.domain.exception.IdempotencyConflictException;
 import com.shiva.wallet.domain.exception.InvalidRequestException;
 import com.shiva.wallet.domain.exception.NotFoundException;
 import com.shiva.wallet.repository.TransferRepository;
-import com.shiva.wallet.repository.WalletRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,19 +40,19 @@ public class TransferService {
     private static final Logger log = LoggerFactory.getLogger(TransferService.class);
 
     private final TransferExecutor transferExecutor;
+    private final TransferPreflight preflight;
     private final TransferRepository transferRepository;
-    private final WalletRepository walletRepository;
     private final RequestHasher requestHasher;
     private final WalletMetrics metrics;
 
     public TransferService(TransferExecutor transferExecutor,
                            TransferRepository transferRepository,
-                           WalletRepository walletRepository,
                            RequestHasher requestHasher,
+                           TransferPreflight preflight,
                            WalletMetrics metrics) {
         this.transferExecutor = transferExecutor;
+        this.preflight = preflight;
         this.transferRepository = transferRepository;
-        this.walletRepository = walletRepository;
         this.requestHasher = requestHasher;
         this.metrics = metrics;
     }
@@ -66,11 +63,19 @@ public class TransferService {
                              long amountPaise,
                              String idempotencyKey) {
 
-        validate(callerUserId, fromWalletId, toWalletId, amountPaise);
+        if (amountPaise <= 0) {
+            throw new InvalidRequestException("amount_paise must be a positive number of paise");
+        }
+        if (fromWalletId.equals(toWalletId)) {
+            throw new InvalidRequestException("from and to must be different wallets");
+        }
+
         String requestHash = requestHasher.hash(fromWalletId, toWalletId, amountPaise);
 
+        // Wallet checks and the idempotency lookup share one read-only transaction, so this
+        // is a single connection acquisition rather than three. See TransferPreflight.
         Optional<Transfer> alreadyApplied =
-                transferRepository.findByCreatedByUserAndIdempotencyKey(callerUserId, idempotencyKey);
+                preflight.inspect(callerUserId, fromWalletId, toWalletId, idempotencyKey);
         if (alreadyApplied.isPresent()) {
             return replayOf(alreadyApplied.get(), idempotencyKey, requestHash);
         }
@@ -114,23 +119,5 @@ public class TransferService {
         log.info("transfer.idempotent_replay transfer_id={} idempotency_key={} status={}",
                 existing.getPublicId(), idempotencyKey, existing.getStatus());
         return existing;
-    }
-
-    private void validate(Long callerUserId, Long fromWalletId, Long toWalletId, long amountPaise) {
-        if (amountPaise <= 0) {
-            throw new InvalidRequestException("amount_paise must be a positive number of paise");
-        }
-        if (fromWalletId.equals(toWalletId)) {
-            throw new InvalidRequestException("from and to must be different wallets");
-        }
-
-        Wallet from = walletRepository.findById(fromWalletId)
-                .orElseThrow(() -> new NotFoundException("Wallet " + fromWalletId + " does not exist"));
-        walletRepository.findById(toWalletId)
-                .orElseThrow(() -> new NotFoundException("Wallet " + toWalletId + " does not exist"));
-
-        if (!from.getUserId().equals(callerUserId)) {
-            throw new ForbiddenException("Caller does not own wallet " + fromWalletId);
-        }
     }
 }

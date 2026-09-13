@@ -4,10 +4,9 @@ Living status of the Paytm PML Round 2 assignment. **Update this file as things 
 it is the first thing a new session should read after [CLAUDE.md](CLAUDE.md).
 
 **Last updated:** 2026-09-13
-**Overall:** code and docs complete, the public repo is live at
-<https://github.com/shivamunigala/wallet>, and the Render service exists. The first deploy
-OOM-killed at runtime; the JVM sizing that caused it is fixed and verified locally, and the
-fix is not yet deployed.
+**Overall:** **the service is live and green.** <https://wallet-dm4c.onrender.com> is
+deployed on Render against Neon, and `./scripts/burst.sh` passes **15/15 three consecutive
+runs, 60/60 transfers each**. Remaining: the public logs link, and Shiva's AI disclosure.
 
 > **Keep this file current.** [CLAUDE.md](CLAUDE.md) requires every session to update it
 > before finishing. A stale tracker is worse than none — the next session trusts it.
@@ -18,10 +17,10 @@ fix is not yet deployed.
 
 | # | Deliverable | Status | Notes |
 |---|---|---|---|
-| 1 | Live URL (deployed API) | **In progress** | Service `wallet` exists at <https://wallet-dm4c.onrender.com>; first deploy OOM-killed, fix pending push — T3 |
+| 1 | Live URL (deployed API) | **Done** | <https://wallet-dm4c.onrender.com> — health UP, burst 15/15 |
 | 2 | Public repo | **Done** | <https://github.com/shivamunigala/wallet> — personal account, public, 7 commits |
-| 3 | Public logs link (or screen recording of a burst) | **Not started** | Needs the deploy first |
-| 4 | One-command burst script | **Done** | `./scripts/burst.sh <url>` — 15/15 passing locally |
+| 3 | Public logs link (or screen recording of a burst) | **Not started** | Deploy is live, so this is unblocked — T5 |
+| 4 | One-command burst script | **Done** | `./scripts/burst.sh <url>` — 15/15 locally *and* against the live URL |
 | 5 | One-page write-up | **Done** | [docs/DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md) |
 | 5a | — AI directed-vs-decided disclosure | **Not started** | **Shiva writes this himself.** See T4 |
 | 5b | — free-tier cost note (₹0) | **Done** | In DESIGN-DECISIONS.md |
@@ -36,16 +35,16 @@ fix is not yet deployed.
 | Race-free get-or-create | **Done** | `GetOrCreateRaceTest`; burst scenario 1 |
 | Dockerfile: multi-stage, non-root, HEALTHCHECK | **Done** | Verified: container reports `healthy`, runs as `uid=1001(wallet)` |
 | docker-compose: app + Postgres, one command | **Done** | `docker-compose up --build`, cold start from empty volume verified |
-| Deployed to a free host + managed Postgres | **In progress** | Neon migrated and reachable from Render; Render service created in frankfurt, first deploy OOM-killed at startup |
+| Deployed to a free host + managed Postgres | **Done** | Render (frankfurt) + Neon (eu-central-1), live and passing the burst |
 | Structured JSON logs with correlation id | **Done** | `logback-spring.xml`; domain events logged |
-| Logs publicly viewable | **Not started** | Comes with the deploy |
+| Logs publicly viewable | **Not started** | Render log stream exists; needs a shareable link or a recording — T5 |
 | Metrics: rate, p99, errors, domain counters | **Done** | `/actuator/prometheus`; 5 `wallet_*` counters verified |
 
 ---
 
 ## Blockers
 
-None open. The Render OOM is diagnosed and fixed locally; it now just needs a push.
+None open.
 
 ---
 
@@ -86,32 +85,28 @@ Or via the web UI: repo → Settings → Danger Zone. Low urgency — it is priv
 Also worth deleting: the unused SSH key `~/.ssh/id_ed25519_personal_github` and its
 `.pub`, generated during the mix-up and never used.
 
-### T3. Finish the Render deploy
-Full runbook: [docs/OPERATIONS.md](docs/OPERATIONS.md#deploy-neon--render-0).
+### T3. Deploy to Render + Neon — **DONE**
+Live at <https://wallet-dm4c.onrender.com>. Runbook:
+[docs/OPERATIONS.md](docs/OPERATIONS.md#deploy-neon--render-0).
 
-**Already done:** Neon project exists in **eu-central-1** with V1+V2 applied; the Render
-service `wallet` (`srv-daj7n6nqj5pc73ci251g`) exists in **frankfurt**, wired to the public
-repo with autodeploy on commit; `DATABASE_URL` is set in the dashboard and the deployed app
-reached Neon and validated both migrations successfully.
+Service `wallet` (`srv-daj7n6nqj5pc73ci251g`), frankfurt, autodeploy on commit, against Neon
+`eu-central-1` with V1+V2 applied. Three failures were diagnosed and fixed getting here —
+all three are written up in [HANDOVER.md](HANDOVER.md#6-the-render-oom-was-jvm-sizing-not-a-leak).
 
-**What failed:** the first deploy (`dep-daj7n7fqj5pc73ci2750`, commit `a0e2047`) ended
-`update_failed` — **Out of memory (used over 512Mi)**, at *runtime*, not in the build. Cause
-and fix in [HANDOVER.md](HANDOVER.md#6-the-render-oom-was-jvm-sizing-not-a-leak).
-
-**What remains:** push the Dockerfile JVM-sizing fix. Autodeploy will pick it up. Then:
+Re-verify with:
 
 ```bash
 curl -s https://wallet-dm4c.onrender.com/actuator/health
 ./scripts/burst.sh https://wallet-dm4c.onrender.com
 ```
 
-Still standing from before:
-- **Use the DIRECT Neon endpoint, not `-pooler`** — PgBouncer transaction pooling breaks
-  Flyway's advisory lock. Already configured correctly; do not change it.
+**Warm it first.** The free instance sleeps when idle and the first burst against a cold
+instance fails on timeouts. Hit `/actuator/health` until it returns 200, then burst.
+
+Still outstanding here:
 - **Rotate the Neon password** once the assignment is submitted — the current one was pasted
   into a chat transcript.
-- Free-tier instances sleep when idle, so the first request after a pause is slow. Warm the
-  service with a health check before running the burst.
+- Keep using the **DIRECT** Neon endpoint, never `-pooler`.
 
 ### T4. AI disclosure — **Shiva writes this, not Claude**
 The brief asks where he *directed* the AI versus where he *let it decide*. Deliberately not
@@ -130,6 +125,7 @@ Newest first. One or two lines each — detail belongs in [HANDOVER.md](HANDOVER
 
 | Date | What moved |
 |---|---|
+| 2026-09-13 | **Service is live and green**: 15/15 three runs against <https://wallet-dm4c.onrender.com>. Fixed two further failures after the OOM — Hikari pool exhaustion under the burst (pool 5 → 20, timeout 10s), and pool timeouts being reported as 500 because the same timeout wears three different exception types. Then cut `POST /transfers` from four connection acquisitions to two via `TransferPreflight`; burst now passes with a pool of **2**. |
 | 2026-09-13 | Diagnosed the Render deploy failure: **runtime** OOM, not build. `MaxRAMPercentage=70` sized the heap alone at ~358Mi of a 512Mi cap, leaving too little for metaspace; the container was killed mid-Hibernate-bootstrap before Tomcat bound a port. Replaced with explicit per-region limits (~439Mi ceiling). Verified locally in a 512m-capped container: healthy, burst 15/15, peak 255Mi. **Not yet pushed.** |
 | 2026-09-13 | **Public repo live** at <https://github.com/shivamunigala/wallet>. All 7 commits rewritten to the personal noreply identity; push isolated to a dedicated SSH key with repo-local config only. |
 | 2026-09-13 | Added TRACKER.md and HANDOVER.md for cross-session continuity; CLAUDE.md now requires the tracker to be updated at the end of every session. |

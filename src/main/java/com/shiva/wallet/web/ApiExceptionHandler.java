@@ -9,6 +9,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.dao.TransientDataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -65,16 +66,29 @@ public class ApiExceptionHandler {
      * is a retryable 503, not a 500 that suggests the service is broken. Nothing partial
      * can have been committed: the whole transfer lives in one transaction.
      *
-     * <p>Two exception families have to be named, which is easy to get wrong.
-     * A pool timeout raised once a transaction is already running surfaces as a
-     * {@link TransientDataAccessException}; one raised while the transaction is still being
-     * opened never reaches Spring's DAO translation at all and surfaces as a
-     * {@link CannotCreateTransactionException}, which is a {@code TransactionException} and
-     * therefore *not* a {@code DataAccessException}. Listing only the first looks correct
-     * and silently reports every pool timeout as a 500 — which is exactly what the first
-     * live burst against Render did, on 41 of 60 concurrent transfers.
+     * <p>One pool timeout wears three different exception types depending on when in the
+     * request it lands, and all three have to be named here. Miss one and that slice of
+     * failures is silently reported as a 500:
+     *
+     * <ul>
+     *   <li>raised once a transaction is already running — {@link TransientDataAccessException};
+     *   <li>raised while the transaction is still being opened — {@link CannotCreateTransactionException},
+     *       which never reaches Spring's DAO translation at all and is a
+     *       {@code TransactionException}, so not a {@code DataAccessException};
+     *   <li>raised mid-session — {@link DataAccessResourceFailureException}, which Spring
+     *       translates into the *non-transient* family, so a handler on
+     *       {@code TransientDataAccessException} does not catch it either.
+     * </ul>
+     *
+     * <p>All three were observed live against Render: the first burst reported 41 of 60
+     * transfers as 500s through the second form, and the surviving one-off came through the
+     * third. The classification is counter-intuitive enough that it is worth restating —
+     * "non-transient" here describes the JDBC resource, not the request. Nothing was
+     * applied in any of these cases, so the honest answer to the caller is a retryable 503.
      */
-    @ExceptionHandler({TransientDataAccessException.class, CannotCreateTransactionException.class})
+    @ExceptionHandler({TransientDataAccessException.class,
+                       CannotCreateTransactionException.class,
+                       DataAccessResourceFailureException.class})
     public ResponseEntity<ErrorResponse> handleTransientDatabaseFailure(RuntimeException e) {
         log.warn("request.transient_database_conflict reason={}", e.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

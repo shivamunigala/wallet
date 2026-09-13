@@ -48,8 +48,8 @@ consistency-versus-availability position. Reasoning for each is in
 
 ## What exists now
 
-Eight commits on `main`, working tree clean, pushed to
-**<https://github.com/shivamunigala/wallet>** (personal account, public).
+`main` is clean and pushed to **<https://github.com/shivamunigala/wallet>** (personal
+account, public).
 
 Complete and verified: the service, the four-invariant Testcontainers suite (10 tests), the
 Dockerfile and compose stack, the Render blueprint, the burst script (15 assertions), and
@@ -58,8 +58,8 @@ six documents under `docs/`.
 Not done: the deployment, and everything that depends on it — the live URL and the public
 logs link. See [TRACKER.md](TRACKER.md).
 
-> Commit SHAs are deliberately not listed here; they went stale once history was rewritten.
-> Run `git log --oneline`.
+> Commit SHAs and counts are deliberately not listed here — they went stale immediately once
+> history was rewritten. Run `git log --oneline`.
 
 ---
 

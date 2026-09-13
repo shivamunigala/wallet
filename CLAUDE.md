@@ -45,9 +45,30 @@ without opening the file.
 
 ## Before you push anything
 
-This repo has **no git remote, deliberately**. It was once pushed to Shiva's office GitHub
-account by mistake. **Never create a remote or push without asking him first** — plan
-approval is not consent for a push. Background in [HANDOVER.md](HANDOVER.md#the-github-situation--read-before-touching-any-remote).
+`origin` is **git@github.com:shivamunigala/wallet.git** — Shiva's *personal* account, public.
+It is **not** his work account, and keeping those apart is deliberate.
+
+Three repo-local settings hold that separation. Do not change or globalise them:
+
+```
+user.email      63115458+shivamunigala@users.noreply.github.com
+user.name       Shiva Munigala
+core.sshCommand ssh -i ~/.ssh/id_ed25519_shivamunigala -o IdentitiesOnly=yes -o IdentityAgent=none
+```
+
+`IdentityAgent=none` is load-bearing: the ssh-agent holds his **work** key and offers it
+ahead of the `-i` key, so without it pushes authenticate as the wrong account.
+`IdentitiesOnly=yes` alone does not prevent this.
+
+Before any push to a new remote, verify the identity rather than assuming:
+
+```bash
+git push --dry-run <remote> main     # fails loudly on the wrong account
+```
+
+The repo was once pushed to his office account by mistake, because plan approval was treated
+as consent for a push. **It is not.** Ask at the moment of pushing, every time. Background in
+[HANDOVER.md](HANDOVER.md#the-github-situation--resolved-but-read-this-before-touching-any-remote).
 
 ## Build and test
 

@@ -128,7 +128,47 @@ Three separate obstacles, all now handled in `pom.xml`:
 - `DOCKER_HOST` still has to be exported per-machine:
   `export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"`.
 
-### 6. Smaller ones
+### 6. The Render OOM was JVM sizing, not a leak
+
+The first Render deploy (`dep-daj7n7fqj5pc73ci2750`) ended `update_failed` with
+`==> Out of memory (used over 512Mi)`. Two things about it are easy to get wrong:
+
+**It was the runtime phase, not the build.** The build succeeded end to end — image pushed,
+container started, Spring Boot banner, Flyway validated both migrations against Neon. The
+kill came ~90s into startup, right after `HHH000400: Using dialect`, while Hibernate was
+still building the EntityManagerFactory. Tomcat had not yet bound a port, which is why the
+log is full of `No open ports detected, continuing to scan...` and why the health check
+never had anything to fail against. Render's memory metric for that instance climbs
+monotonically 123Mi → 241Mi → 406Mi → 440Mi and stops. Diagnosing this from the deploy
+status alone is impossible; read the app logs and the `memory_usage` metric together.
+
+**The cause was `-XX:MaxRAMPercentage=70.0` in the Dockerfile.** That flag was added for the
+right reason — JDK 8 from 8u191 is container-aware, so the heap should be sized from the
+cgroup limit rather than the host's RAM — but it is the wrong instrument for this box. It
+bounds *only the heap*: 70% of 512Mi is ~358Mi of heap, and it says nothing at all about
+metaspace, code cache, thread stacks or JVM native overhead. Spring Boot 2.7 with Hibernate
+needs ~90Mi of metaspace before serving a request, so the total ceiling was always over
+512Mi. The JVM never threw `OutOfMemoryError` and `ExitOnOutOfMemoryError` never fired —
+from the JVM's point of view nothing was wrong, it was growing a heap it had been told it
+could grow. The platform killed the process from outside.
+
+**Do not "fix" this by raising the percentage, or by assuming container detection is
+broken.** Detection works fine on 8u502. The fix is to bound every region explicitly and
+leave headroom under the cap, which is what the Dockerfile now does (~439Mi ceiling: 224Mi
+heap, 112Mi metaspace, 48Mi code cache, ~20Mi stacks, ~35Mi native), with SerialGC because
+the free instance is a fraction of a core.
+
+Verified before pushing, and worth repeating if these numbers are ever changed — running
+the app unconstrained locally proves nothing, because the cap is the whole problem:
+
+```bash
+docker run --memory=512m --memory-swap=512m ... wallet
+./scripts/burst.sh http://localhost:18080
+```
+
+Result: healthy in seconds, 15/15 assertions, peak 255Mi of 512Mi.
+
+### 7. Smaller ones
 - `@SpringBootTest` disables metrics export; asserting on `/actuator/prometheus` needs
   `@AutoConfigureMetrics`.
 - The JDK's `HttpURLConnection` throws `HttpRetryException` instead of surfacing a 401 when

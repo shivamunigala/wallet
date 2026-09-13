@@ -37,10 +37,34 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=60s --retries=3 \
     CMD curl -fsS http://localhost:${PORT:-8080}/actuator/health || exit 1
 
-# Container memory is far smaller than the host's, and Render's free tier is 512MB. JDK 8
-# from 8u191 onwards is container-aware by default, so MaxRAMPercentage sizes the heap
-# from the cgroup limit. The older UnlockExperimentalVMOptions/UseCGroupMemoryLimitForHeap
-# pair is deprecated on this JDK and only produces a warning.
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError"
+# Memory is the binding constraint here, not CPU: Render's free instance is hard-capped at
+# 512Mi and the platform kills the container the moment total RSS crosses it - heap,
+# metaspace, code cache, thread stacks and JVM native overhead all counted together.
+#
+# MaxRAMPercentage was the wrong instrument. It sizes only the *heap*, as a share of the
+# container limit, and says nothing about the rest. At 70% it claimed ~358Mi of the 512Mi
+# for heap alone, leaving ~154Mi for a Spring Boot 2.7 + Hibernate startup that needs
+# roughly 90Mi of metaspace before it has served a single request. The JVM never saw an
+# OutOfMemoryError - it was still happily growing a heap it had been told it could grow,
+# and the platform killed it mid-Hibernate-bootstrap, before Tomcat bound the port.
+#
+# So every region is now bounded explicitly, and the total is kept under the cap with
+# headroom rather than pressed against it:
+#
+#   heap         224Mi   -Xmx
+#   metaspace    112Mi   -XX:MaxMetaspaceSize
+#   code cache    48Mi   -XX:ReservedCodeCacheSize
+#   thread stacks ~20Mi  -Xss512k, Tomcat's pool being the bulk of it
+#   JVM native    ~35Mi
+#   ------------------
+#   ceiling      ~439Mi against a 512Mi limit
+#
+# SerialGC because the free instance is a fraction of a core: G1's concurrent threads and
+# per-region bookkeeping cost both CPU and footprint that a heap this small cannot repay.
+#
+# ExitOnOutOfMemoryError is kept deliberately. A wallet that has lost its heap must not
+# linger in a half-working state serving some transfers and failing others - it should die
+# and let the platform restart it.
+ENV JAVA_OPTS="-Xmx224m -XX:MaxMetaspaceSize=112m -XX:ReservedCodeCacheSize=48m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/wallet.jar"]

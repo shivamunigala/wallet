@@ -33,9 +33,13 @@ from threading import Barrier
 # Seeded by the V2 Flyway migration. Public on purpose: this service holds no real money.
 TOKENS = ["token-alice", "token-bob", "token-carol", "token-dave"]
 
-GET_OR_CREATE_CALLERS = 25
-RETRY_STORM_SIZE = 25
-CONTENDED_TRANSFERS = 60
+# Seeded by V3. Disposable users that start with no wallet, so the get-or-create race can
+# actually be exercised -- see scenario 1.
+BURST_TOKENS = ["token-burst-%03d" % n for n in range(1, 201)]
+
+GET_OR_CREATE_CALLERS = 50
+RETRY_STORM_SIZE = 30
+CONTENDED_TRANSFERS = 300
 STARTING_BALANCE_PAISE = 50_000
 TRANSFER_AMOUNT_PAISE = 3_000
 
@@ -68,6 +72,15 @@ class Api:
     def deposit(self, wallet_id, token, amount):
         return self.call("POST", "/wallets/%d/deposit" % wallet_id, token,
                          {"amount_paise": amount})
+
+    def counter(self, name):
+        """Reads a single Prometheus counter. Used to prove a race actually ran."""
+        request = urllib.request.Request(self.base_url + "/actuator/prometheus")
+        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            for line in response.read().decode("utf-8").splitlines():
+                if line.startswith(name + "{"):
+                    return float(line.rsplit(" ", 1)[1])
+        return 0.0
 
     def transfer(self, token, from_id, to_id, amount, key):
         return self.call("POST", "/transfers", token, {
@@ -125,19 +138,49 @@ class Report:
 
 
 def scenario_get_or_create(api, report):
+    """
+    The race is only real for a user that has no wallet yet.
+
+    Once a user owns a wallet, every concurrent POST /wallets takes the found path and the
+    assertion "they all got the same id" passes without the insert race ever running. That
+    is the same trap as a conservation test that stays green while every request fails, so
+    this claims an unused user from the V3 pool and then *proves* the race happened: exactly
+    one of the concurrent callers may create the wallet, so the wallet-created counter must
+    rise by exactly one.
+    """
     print("\n[1/4] Concurrent get-or-create: %d simultaneous POST /wallets"
           % GET_OR_CREATE_CALLERS)
-    token = TOKENS[3]
-    results = simultaneously([lambda: api.call("POST", "/wallets", token)]
-                             * GET_OR_CREATE_CALLERS)
+
+    token = None
+    for candidate in BURST_TOKENS:
+        before = api.counter("wallet_wallets_created_total")
+        results = simultaneously([lambda: api.call("POST", "/wallets", candidate)]
+                                 * GET_OR_CREATE_CALLERS)
+        created = api.counter("wallet_wallets_created_total") - before
+        if created >= 1:
+            token = candidate
+            break
+        print("      %s already had a wallet, trying the next one" % candidate)
+    else:
+        report.check("get-or-create",
+                     "an unused burst user was available to race on", False,
+                     "all %d V3 burst users already own wallets - reseed or extend the pool"
+                     % len(BURST_TOKENS))
+        return
 
     statuses = {status for status, _ in results}
     wallet_ids = {body.get("id") for _, body in results}
 
+    print("      raced on %s" % token)
     report.check("get-or-create", "every caller received one and the same wallet id",
                  len(wallet_ids) == 1, "distinct ids: %s" % sorted(wallet_ids))
     report.check("get-or-create", "every response succeeded",
                  statuses == {200}, "statuses: %s" % sorted(statuses))
+    report.check("get-or-create",
+                 "the race actually ran, and created exactly one wallet",
+                 created == 1,
+                 "wallet_wallets_created_total rose by %g across %d concurrent creators"
+                 % (created, GET_OR_CREATE_CALLERS))
 
 
 def scenario_retry_storm(api, report):

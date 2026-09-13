@@ -5,8 +5,10 @@ it is the first thing a new session should read after [CLAUDE.md](CLAUDE.md).
 
 **Last updated:** 2026-09-13
 **Overall:** **the service is live and green.** <https://wallet-dm4c.onrender.com> is
-deployed on Render against Neon, and `./scripts/burst.sh` passes **15/15 three consecutive
-runs, 60/60 transfers each**. Remaining: the public logs link, and Shiva's AI disclosure.
+deployed on Render against Neon, running `6bd88d9`, and `./scripts/burst.sh` passes
+**15/15 three consecutive runs, 60/60 transfers each, zero non-201 responses**. Per-transfer
+database time measured down from ~93ms to ~37ms. Memory steady at ~268Mi of 512Mi.
+Remaining: the public logs link, and Shiva's AI disclosure.
 
 > **Keep this file current.** [CLAUDE.md](CLAUDE.md) requires every session to update it
 > before finishing. A stale tracker is worse than none — the next session trusts it.
@@ -125,7 +127,7 @@ Newest first. One or two lines each — detail belongs in [HANDOVER.md](HANDOVER
 
 | Date | What moved |
 |---|---|
-| 2026-09-13 | **Service is live and green**: 15/15 three runs against <https://wallet-dm4c.onrender.com>. Fixed two further failures after the OOM — Hikari pool exhaustion under the burst (pool 5 → 20, timeout 10s), and pool timeouts being reported as 500 because the same timeout wears three different exception types. Then cut `POST /transfers` from four connection acquisitions to two via `TransferPreflight`; burst now passes with a pool of **2**. |
+| 2026-09-13 | **Service is live and green** on `6bd88d9`: 15/15 three runs against <https://wallet-dm4c.onrender.com>, 60/60 transfers, no non-201s. Per-transfer DB time ~93ms → ~37ms. Fixed two further failures after the OOM — Hikari pool exhaustion under the burst (pool 5 → 20, timeout 10s), and pool timeouts being reported as 500 because the same timeout wears three different exception types. Then cut `POST /transfers` from four connection acquisitions to two via `TransferPreflight`; burst now passes with a pool of **2**. |
 | 2026-09-13 | Diagnosed the Render deploy failure: **runtime** OOM, not build. `MaxRAMPercentage=70` sized the heap alone at ~358Mi of a 512Mi cap, leaving too little for metaspace; the container was killed mid-Hibernate-bootstrap before Tomcat bound a port. Replaced with explicit per-region limits (~439Mi ceiling). Verified locally in a 512m-capped container: healthy, burst 15/15, peak 255Mi. **Not yet pushed.** |
 | 2026-09-13 | **Public repo live** at <https://github.com/shivamunigala/wallet>. All 7 commits rewritten to the personal noreply identity; push isolated to a dedicated SSH key with repo-local config only. |
 | 2026-09-13 | Added TRACKER.md and HANDOVER.md for cross-session continuity; CLAUDE.md now requires the tracker to be updated at the end of every session. |
